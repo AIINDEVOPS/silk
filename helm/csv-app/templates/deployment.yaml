@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-csv-app
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Release.Name }}-csv-app
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-csv-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-csv-app
+        release: {{ .Release.Name }}
+    spec:
+      {{- if ne .Values.affinity.nodeType "any" }}
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 80
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values: [{{ .Values.affinity.nodeType }}]
+      {{- end }}
+      initContainers:
+        - name: static-files-init
+          image: "{{ .Values.image.flaskApp.repository }}:{{ .Values.image.flaskApp.tag }}"
+          command: ["sh", "-c", "cp -r /app/static/. /shared-static/"]
+          volumeMounts:
+            - name: shared-static
+              mountPath: /shared-static
+      containers:
+        - name: flask-app
+          image: "{{ .Values.image.flaskApp.repository }}:{{ .Values.image.flaskApp.tag }}"
+          imagePullPolicy: {{ .Values.image.flaskApp.pullPolicy }}
+          ports:
+            - containerPort: 5000
+          env:
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: S3_BUCKET
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: AWS_REGION
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: SECRET_KEY
+          resources:
+            {{- toYaml .Values.resources.flaskApp | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: uploads-storage
+              mountPath: /app/uploads
+            - name: processed-storage
+              mountPath: /app/processed
+
+        - name: nginx
+          image: "{{ .Values.image.nginx.repository }}:{{ .Values.image.nginx.tag }}"
+          imagePullPolicy: {{ .Values.image.nginx.pullPolicy }}
+          ports:
+            - containerPort: 80
+          resources:
+            {{- toYaml .Values.resources.nginx | nindent 12 }}
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: shared-static
+              mountPath: /app/shared-static
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+      volumes:
+        - name: shared-static
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: {{ .Release.Name }}-nginx-config
+        - name: uploads-storage
+          emptyDir: {}
+        - name: processed-storage
+          emptyDir: {}

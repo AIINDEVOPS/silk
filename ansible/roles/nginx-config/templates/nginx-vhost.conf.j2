@@ -1,0 +1,34 @@
+# Nginx vhost config - managed by Ansible
+upstream flask_app {
+    server localhost:{{ flask_app_port }};
+}
+
+server {
+    listen {{ nginx_port }};
+    server_name _;
+
+    client_max_body_size {{ nginx_client_max_body_size }};
+
+    location /static/ {
+        alias /opt/csv-app/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location / {
+        proxy_pass http://flask_app;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+
+    location /health {
+        proxy_pass http://flask_app/health;
+        access_log off;
+    }
+
+    access_log /var/log/nginx/{{ app_name }}-access.log;
+    error_log  /var/log/nginx/{{ app_name }}-error.log;
+}

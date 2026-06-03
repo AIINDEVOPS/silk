@@ -1,0 +1,87 @@
+# kops cluster configuration
+# Deploy with: kops create -f cluster.yaml && kops update cluster --name=prod.k8s.example.com --yes
+apiVersion: kops.k8s.io/v1alpha2
+kind: Cluster
+metadata:
+  name: prod.k8s.example.com
+spec:
+  api:
+    loadBalancer:
+      type: Public
+      additionalSecurityGroups: []
+  authorization:
+    rbac: {}
+  channel: stable
+  cloudProvider: aws
+  configBase: s3://kops-state-store-example/prod.k8s.example.com
+  dnsZone: k8s.example.com
+  etcdClusters:
+    - cpuRequest: 200m
+      memoryRequest: 100Mi
+      etcdMembers:
+        - instanceGroup: master-us-east-1a
+          name: a
+        - instanceGroup: master-us-east-1b
+          name: b
+        - instanceGroup: master-us-east-1c
+          name: c
+      name: main
+    - etcdMembers:
+        - instanceGroup: master-us-east-1a
+          name: a
+        - instanceGroup: master-us-east-1b
+          name: b
+        - instanceGroup: master-us-east-1c
+          name: c
+      name: events
+  kubernetesApiAccess:
+    - 0.0.0.0/0
+  kubernetesVersion: 1.29.0
+  masterPublicName: api.prod.k8s.example.com
+  networkCIDR: 172.20.0.0/16
+  networking:
+    calico:
+      majorVersion: v3
+  nonMasqueradeCIDR: 100.64.0.0/10
+  sshAccess:
+    - 0.0.0.0/0
+  subnets:
+    - cidr: 172.20.32.0/19
+      name: us-east-1a
+      type: Private
+      zone: us-east-1a
+    - cidr: 172.20.64.0/19
+      name: us-east-1b
+      type: Private
+      zone: us-east-1b
+    - cidr: 172.20.96.0/19
+      name: us-east-1c
+      type: Private
+      zone: us-east-1c
+    - cidr: 172.20.0.0/22
+      name: utility-us-east-1a
+      type: Utility
+      zone: us-east-1a
+    - cidr: 172.20.4.0/22
+      name: utility-us-east-1b
+      type: Utility
+      zone: us-east-1b
+    - cidr: 172.20.8.0/22
+      name: utility-us-east-1c
+      type: Utility
+      zone: us-east-1c
+  topology:
+    dns:
+      type: Public
+    masters: private
+    nodes: private
+  # Cluster Autoscaler addon
+  clusterAutoscaler:
+    enabled: true
+    skipNodesWithLocalStorage: false
+    skipNodesWithSystemPods: true
+    balanceSimilarNodeGroups: false
+    awsUseStaticInstanceList: false
+    expander: least-waste
+    scaleDownDelayAfterAdd: 10m
+    scaleDownUnneededTime: 10m

@@ -1,0 +1,33 @@
+---
+# Global application configuration
+app_name: csv-processor
+app_version: "1.0.0"
+app_env: production
+
+# Flask application settings
+flask_app_port: 5000
+flask_workers: 2
+flask_timeout: 60
+
+# Nginx settings
+nginx_port: 80
+nginx_client_max_body_size: "50M"
+nginx_gzip: true
+
+# AWS / S3 settings
+aws_region: us-east-1
+s3_bucket: devops-csv-uploads
+s3_prefix: processed
+
+# Docker settings
+docker_registry: docker.io
+docker_image: YOUR_DOCKERHUB_USERNAME/csv-processor
+docker_tag: latest
+
+# Kubernetes namespace
+k8s_namespace: csv-app
+k8s_kubeconfig: /home/ubuntu/.kube/config
+
+# Logging
+log_level: INFO
+log_format: json

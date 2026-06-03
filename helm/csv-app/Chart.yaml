@@ -1,0 +1,14 @@
+apiVersion: v2
+name: csv-app
+description: CSV Processor Web Application - DevOps Case Study
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - csv
+  - python
+  - flask
+  - nginx
+maintainers:
+  - name: DevOps Team
+home: https://github.com/YOUR_USERNAME/devops-case-study

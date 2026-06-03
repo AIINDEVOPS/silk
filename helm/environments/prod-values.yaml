@@ -1,0 +1,19 @@
+# Production environment overrides
+replicaCount: 4
+autoscaling:
+  enabled: true
+  minReplicas: 4
+  maxReplicas: 50
+service:
+  type: LoadBalancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+config:
+  s3Bucket: "devops-csv-uploads-prod"
+  awsRegion: "us-east-1"
+affinity:
+  nodeType: ondemand
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2

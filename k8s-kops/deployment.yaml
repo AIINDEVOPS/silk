@@ -1,0 +1,233 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: csv-app
+
+---
+# ConfigMap for Nginx configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: csv-app
+data:
+  nginx.conf: |
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /tmp/nginx.pid;
+    events { worker_connections 1024; }
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      sendfile on;
+      gzip on;
+      gzip_types text/plain text/css application/javascript;
+      client_max_body_size 50M;
+      upstream flask_app { server localhost:5000; }
+      server {
+        listen 80;
+        server_name _;
+        location /static/ {
+          alias /app/shared-static/;
+          expires 30d;
+        }
+        location / {
+          proxy_pass http://flask_app;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_connect_timeout 30s;
+          proxy_read_timeout 60s;
+        }
+        location /health {
+          proxy_pass http://flask_app/health;
+          access_log off;
+        }
+      }
+    }
+
+---
+# Secret for AWS credentials and app config
+apiVersion: v1
+kind: Secret
+metadata:
+  name: csv-app-secrets
+  namespace: csv-app
+type: Opaque
+stringData:
+  S3_BUCKET: "devops-csv-uploads"
+  AWS_REGION: "us-east-1"
+  SECRET_KEY: "change-me-in-production"
+  # AWS credentials should be provided via IAM role / IRSA in production
+  # AWS_ACCESS_KEY_ID: ""
+  # AWS_SECRET_ACCESS_KEY: ""
+
+---
+# Main Deployment: Nginx + Flask in same pod, emptyDir shared volume
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: csv-app
+  namespace: csv-app
+  labels:
+    app: csv-app
+    version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: csv-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: csv-app
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+    spec:
+      # Prefer on-demand nodes for the main app
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 80
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values: [ondemand]
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [csv-app]
+                topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: spot-instance
+          operator: Equal
+          value: "true"
+          effect: PreferNoSchedule
+
+      # Init container: copy static files to shared emptyDir volume
+      initContainers:
+        - name: static-files-init
+          image: YOUR_DOCKERHUB_USERNAME/csv-processor:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "Copying static files to shared volume..."
+              cp -r /app/static/. /shared-static/
+              echo "Static files copied successfully"
+          volumeMounts:
+            - name: shared-static
+              mountPath: /shared-static
+
+      containers:
+        # ── Container 1: Flask App ──────────────────────
+        - name: flask-app
+          image: YOUR_DOCKERHUB_USERNAME/csv-processor:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+              name: http-flask
+          env:
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: csv-app-secrets
+                  key: S3_BUCKET
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: csv-app-secrets
+                  key: AWS_REGION
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: csv-app-secrets
+                  key: SECRET_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: uploads-storage
+              mountPath: /app/uploads
+            - name: processed-storage
+              mountPath: /app/processed
+
+        # ── Container 2: Nginx (sidecar) ────────────────
+        - name: nginx
+          image: nginx:1.25-alpine
+          ports:
+            - containerPort: 80
+              name: http-nginx
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: shared-static
+              mountPath: /app/shared-static
+              readOnly: true
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+      volumes:
+        # Shared static files (emptyDir - not NFS)
+        - name: shared-static
+          emptyDir: {}
+        # Nginx config from ConfigMap
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+        # Persistent storage for uploads
+        - name: uploads-storage
+          emptyDir: {}
+        # Persistent storage for processed metadata
+        - name: processed-storage
+          emptyDir: {}

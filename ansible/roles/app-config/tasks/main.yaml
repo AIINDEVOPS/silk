@@ -1,0 +1,54 @@
+---
+- name: Create application directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+    owner: ubuntu
+    group: ubuntu
+  loop:
+    - /opt/csv-app
+    - /opt/csv-app/uploads
+    - /opt/csv-app/processed
+    - /opt/csv-app/config
+    - /var/log/csv-app
+
+- name: Deploy application environment config
+  template:
+    src: app.env.j2
+    dest: /opt/csv-app/config/app.env
+    mode: "0600"
+  notify: restart csv-app
+
+- name: Deploy gunicorn config
+  template:
+    src: gunicorn.conf.j2
+    dest: /opt/csv-app/config/gunicorn.conf.py
+    mode: "0644"
+  notify: restart csv-app
+
+- name: Deploy systemd service unit
+  template:
+    src: csv-app.service.j2
+    dest: /etc/systemd/system/csv-app.service
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart csv-app
+
+- name: Enable and start csv-app service
+  systemd:
+    name: csv-app
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Verify application is running
+  uri:
+    url: "http://localhost:{{ flask_app_port }}/health"
+    return_content: true
+    status_code: 200
+  register: health_check
+  retries: 5
+  delay: 5
+  until: health_check.status == 200

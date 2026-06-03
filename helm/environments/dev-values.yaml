@@ -1,0 +1,21 @@
+# Development environment overrides
+replicaCount: 1
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+service:
+  type: NodePort
+config:
+  s3Bucket: "devops-csv-uploads-dev"
+  awsRegion: "us-east-1"
+affinity:
+  nodeType: any
+resources:
+  flaskApp:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"

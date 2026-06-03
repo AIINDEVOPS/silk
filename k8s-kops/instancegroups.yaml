@@ -1,0 +1,173 @@
+# ─────────────────────────────────────────
+# MASTER Instance Groups (On-Demand only)
+# ─────────────────────────────────────────
+---
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  labels:
+    kops.k8s.io/cluster: prod.k8s.example.com
+  name: master-us-east-1a
+spec:
+  image: 099720109477/ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20240101
+  machineType: m5.large
+  maxSize: 1
+  minSize: 1
+  nodeLabels:
+    kops.k8s.io/instancegroup: master-us-east-1a
+  role: Master
+  subnets:
+    - us-east-1a
+  cloudLabels:
+    k8s.io/cluster-autoscaler/prod.k8s.example.com: "owned"
+    k8s.io/cluster-autoscaler/enabled: "true"
+---
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  labels:
+    kops.k8s.io/cluster: prod.k8s.example.com
+  name: master-us-east-1b
+spec:
+  image: 099720109477/ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20240101
+  machineType: m5.large
+  maxSize: 1
+  minSize: 1
+  nodeLabels:
+    kops.k8s.io/instancegroup: master-us-east-1b
+  role: Master
+  subnets:
+    - us-east-1b
+---
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  labels:
+    kops.k8s.io/cluster: prod.k8s.example.com
+  name: master-us-east-1c
+spec:
+  image: 099720109477/ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20240101
+  machineType: m5.large
+  maxSize: 1
+  minSize: 1
+  nodeLabels:
+    kops.k8s.io/instancegroup: master-us-east-1c
+  role: Master
+  subnets:
+    - us-east-1c
+
+# ─────────────────────────────────────────
+# NODES: On-Demand Instance Group
+# General purpose workloads
+# ─────────────────────────────────────────
+---
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  labels:
+    kops.k8s.io/cluster: prod.k8s.example.com
+  name: nodes-ondemand
+spec:
+  image: 099720109477/ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20240101
+  # Mixed instance policy – on-demand baseline
+  mixedInstancesPolicy:
+    instances:
+      - m5.xlarge
+      - m5a.xlarge
+      - m5n.xlarge
+      - m4.xlarge
+    onDemandBase: 2            # minimum 2 on-demand nodes
+    onDemandAboveBase: 100     # all above baseline = on-demand
+    spotInstancePools: 4
+  minSize: 2
+  maxSize: 10
+  nodeLabels:
+    kops.k8s.io/instancegroup: nodes-ondemand
+    node-type: ondemand
+  role: Node
+  subnets:
+    - us-east-1a
+    - us-east-1b
+    - us-east-1c
+  cloudLabels:
+    k8s.io/cluster-autoscaler/prod.k8s.example.com: "owned"
+    k8s.io/cluster-autoscaler/enabled: "true"
+  taints: []
+
+# ─────────────────────────────────────────
+# NODES: Spot Instance Group (cost saving)
+# Stateless / fault-tolerant workloads
+# ─────────────────────────────────────────
+---
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  labels:
+    kops.k8s.io/cluster: prod.k8s.example.com
+  name: nodes-spot
+spec:
+  image: 099720109477/ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20240101
+  mixedInstancesPolicy:
+    instances:
+      - m5.xlarge
+      - m5a.xlarge
+      - m4.xlarge
+      - r5.xlarge
+      - c5.xlarge
+    onDemandBase: 0            # no on-demand baseline
+    onDemandAboveBase: 0       # all instances = spot
+    spotInstancePools: 5
+    spotMaxPrice: "0.10"       # max bid $0.10/hr
+  minSize: 0
+  maxSize: 20
+  nodeLabels:
+    kops.k8s.io/instancegroup: nodes-spot
+    node-type: spot
+  role: Node
+  subnets:
+    - us-east-1a
+    - us-east-1b
+    - us-east-1c
+  cloudLabels:
+    k8s.io/cluster-autoscaler/prod.k8s.example.com: "owned"
+    k8s.io/cluster-autoscaler/enabled: "true"
+  taints:
+    - spot-instance=true:PreferNoSchedule
+
+# ─────────────────────────────────────────
+# NODES: GPU / High-Compute Instance Group
+# ML / batch processing workloads
+# ─────────────────────────────────────────
+---
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  labels:
+    kops.k8s.io/cluster: prod.k8s.example.com
+  name: nodes-gpu-spot
+spec:
+  image: 099720109477/ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20240101
+  mixedInstancesPolicy:
+    instances:
+      - p3.2xlarge
+      - p2.xlarge
+      - g4dn.xlarge
+    onDemandBase: 0
+    onDemandAboveBase: 0
+    spotInstancePools: 3
+  minSize: 0
+  maxSize: 5
+  nodeLabels:
+    kops.k8s.io/instancegroup: nodes-gpu-spot
+    node-type: gpu-spot
+    accelerator: nvidia-gpu
+  role: Node
+  subnets:
+    - us-east-1a
+    - us-east-1b
+  cloudLabels:
+    k8s.io/cluster-autoscaler/prod.k8s.example.com: "owned"
+    k8s.io/cluster-autoscaler/enabled: "true"
+  taints:
+    - nvidia.com/gpu=present:NoSchedule
+    - spot-instance=true:PreferNoSchedule

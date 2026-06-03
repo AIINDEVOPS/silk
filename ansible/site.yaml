@@ -1,0 +1,29 @@
+---
+# Main Ansible playbook - DevOps Case Study
+- name: Configure CSV Application Servers
+  hosts: k8s_workers
+  become: true
+  gather_facts: true
+  vars_files:
+    - group_vars/all.yaml
+  roles:
+    - role: nginx-config
+      tags: [nginx]
+    - role: app-config
+      tags: [app]
+
+- name: Verify Application Health
+  hosts: k8s_workers
+  gather_facts: false
+  tasks:
+    - name: Check application health endpoint
+      uri:
+        url: "http://{{ ansible_host }}/health"
+        status_code: 200
+      register: health
+      retries: 3
+      delay: 10
+
+    - name: Print health status
+      debug:
+        msg: "{{ inventory_hostname }} is healthy: {{ health.json }}"
