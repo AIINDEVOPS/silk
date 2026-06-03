@@ -1,0 +1,73 @@
+---
+# NodePort service – accessible via: minikube service csv-app-service -n csv-app
+apiVersion: v1
+kind: Service
+metadata:
+  name: csv-app-service
+  namespace: csv-app
+  labels:
+    app: csv-app
+spec:
+  selector:
+    app: csv-app
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080
+
+---
+# Horizontal Pod Autoscaler (requires metrics-server addon in Minikube)
+# Enable with: minikube addons enable metrics-server
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: csv-app-hpa
+  namespace: csv-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: csv-app
+  minReplicas: 2
+  maxReplicas: 5         # Reduced for local resources
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: csv-app-pdb
+  namespace: csv-app
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: csv-app

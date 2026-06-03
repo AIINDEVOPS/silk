@@ -1,0 +1,197 @@
+# Minikube deployment – Nginx + Flask in same pod, emptyDir shared static files
+# Storage backend: MinIO (STORAGE_BACKEND=minio)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: csv-app
+data:
+  nginx.conf: |
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /tmp/nginx.pid;
+    events { worker_connections 1024; }
+    http {
+      include       /etc/nginx/mime.types;
+      default_type  application/octet-stream;
+      sendfile      on;
+      gzip          on;
+      gzip_types    text/plain text/css application/javascript application/json;
+      client_max_body_size 50M;
+
+      upstream flask_app { server localhost:5000; }
+
+      server {
+        listen 80;
+        server_name _;
+
+        # Static files served directly from emptyDir shared volume (NOT NFS)
+        location /static/ {
+          alias /app/shared-static/;
+          expires 30d;
+          add_header Cache-Control "public, immutable";
+        }
+
+        location /health {
+          proxy_pass http://flask_app/health;
+          access_log off;
+        }
+
+        location /ready {
+          proxy_pass http://flask_app/ready;
+          access_log off;
+        }
+
+        location / {
+          proxy_pass http://flask_app;
+          proxy_set_header Host              $host;
+          proxy_set_header X-Real-IP         $remote_addr;
+          proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_connect_timeout 30s;
+          proxy_read_timeout    60s;
+        }
+      }
+    }
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: csv-app-secrets
+  namespace: csv-app
+type: Opaque
+stringData:
+  STORAGE_BACKEND: "minio"
+  S3_BUCKET: "csv-uploads"
+  MINIO_ENDPOINT: "http://minio:9000"
+  MINIO_ACCESS_KEY: "minioadmin"
+  MINIO_SECRET_KEY: "minioadmin"
+  SECRET_KEY: "local-dev-secret-key"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: csv-app
+  namespace: csv-app
+  labels:
+    app: csv-app
+    env: local
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: csv-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: csv-app
+      annotations:
+        # Force pod restart when image changes
+        rollme: "{{ randAlphaNum 5 | quote }}"
+    spec:
+      # ── Init container ─────────────────────────────────────────────────
+      # Copies static files from the app image into the shared emptyDir volume
+      # Nginx reads them from there – this avoids any NFS dependency
+      initContainers:
+        - name: static-files-init
+          image: csv-processor:local
+          imagePullPolicy: Never          # Use local Minikube image cache
+          command:
+            - sh
+            - -c
+            - |
+              echo "Copying static files to shared volume..."
+              cp -rv /app/static/. /shared-static/
+              ls -la /shared-static/
+          volumeMounts:
+            - name: shared-static
+              mountPath: /shared-static
+
+      containers:
+        # ── Container 1: Flask application ─────────────────────────────
+        - name: flask-app
+          image: csv-processor:local
+          imagePullPolicy: Never          # Local Minikube image
+          ports:
+            - containerPort: 5000
+              name: http-flask
+          envFrom:
+            - secretRef:
+                name: csv-app-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: uploads-data
+              mountPath: /app/uploads
+            - name: processed-data
+              mountPath: /app/processed
+
+        # ── Container 2: Nginx (sidecar reverse proxy + static files) ──
+        - name: nginx
+          image: nginx:1.25-alpine
+          ports:
+            - containerPort: 80
+              name: http-nginx
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: shared-static
+              mountPath: /app/shared-static
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+      volumes:
+        - name: shared-static         # emptyDir: in-node memory, NOT NFS
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+        - name: uploads-data
+          emptyDir: {}                 # Local testing – use PVC in production
+        - name: processed-data
+          emptyDir: {}

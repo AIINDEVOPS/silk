@@ -1,0 +1,26 @@
+---
+# Local Minikube environment vars
+app_name: csv-processor
+app_version: "1.0.0"
+app_env: local
+
+flask_app_port: 5000
+flask_workers: 2
+flask_timeout: 60
+
+nginx_port: 80
+nginx_client_max_body_size: "50M"
+
+# MinIO (local S3 replacement)
+storage_backend: minio
+minio_endpoint: "http://minio:9000"
+minio_access_key: minioadmin
+minio_secret_key: minioadmin
+s3_bucket: csv-uploads
+
+docker_image: csv-processor
+docker_tag: local
+
+k8s_namespace: csv-app
+k8s_context: minikube
+log_level: DEBUG

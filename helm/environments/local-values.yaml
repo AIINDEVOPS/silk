@@ -1,11 +1,16 @@
-# Default values – override with environment-specific files
+# Local Minikube environment values
+# Usage:
+#   helm upgrade --install csv-app helm/csv-app \
+#     -f helm/environments/local-values.yaml \
+#     --namespace csv-app --create-namespace
+
 replicaCount: 2
 
 image:
   flaskApp:
-    repository: YOUR_DOCKERHUB_USERNAME/csv-processor
-    tag: latest
-    pullPolicy: Always
+    repository: csv-processor   # built locally into Minikube Docker daemon
+    tag: local
+    pullPolicy: Never            # NEVER pull – use local Minikube image cache
   nginx:
     repository: nginx
     tag: 1.25-alpine
@@ -14,16 +19,15 @@ image:
 namespace: csv-app
 
 service:
-  type: LoadBalancer
+  type: NodePort
   port: 80
-  nodePort: null    # set when type=NodePort
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  nodePort: 30080
+  annotations: {}
 
 autoscaling:
   enabled: true
   minReplicas: 2
-  maxReplicas: 20
+  maxReplicas: 5                 # reduced for local resources
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 
@@ -43,19 +47,17 @@ resources:
       cpu: "200m"
       memory: "128Mi"
 
-# Storage configuration
-# storageBackend: local | minio | s3
 config:
-  storageBackend: "local"
+  storageBackend: "minio"
   s3Bucket: "csv-uploads"
   awsRegion: "us-east-1"
   minioEndpoint: "http://minio:9000"
   minioAccessKey: "minioadmin"
   minioSecretKey: "minioadmin"
-  secretKey: "change-me-in-production"
+  secretKey: "local-dev-secret-key"
 
 affinity:
-  nodeType: ondemand
+  nodeType: any
 
 podDisruptionBudget:
   enabled: true
@@ -63,6 +65,3 @@ podDisruptionBudget:
 
 ingress:
   enabled: false
-  className: nginx
-  host: csv-app.example.com
-  tls: false

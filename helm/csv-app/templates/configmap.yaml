@@ -10,11 +10,11 @@ data:
     pid /tmp/nginx.pid;
     events { worker_connections 1024; }
     http {
-      include /etc/nginx/mime.types;
-      default_type application/octet-stream;
-      sendfile on;
-      gzip on;
-      gzip_types text/plain text/css application/javascript;
+      include       /etc/nginx/mime.types;
+      default_type  application/octet-stream;
+      sendfile      on;
+      gzip          on;
+      gzip_types    text/plain text/css application/javascript;
       client_max_body_size 50M;
       upstream flask_app { server localhost:5000; }
       server {
@@ -23,15 +23,18 @@ data:
         location /static/ {
           alias /app/shared-static/;
           expires 30d;
-        }
-        location / {
-          proxy_pass http://flask_app;
-          proxy_set_header Host $host;
-          proxy_set_header X-Real-IP $remote_addr;
-          proxy_connect_timeout 30s;
-          proxy_read_timeout 60s;
+          add_header Cache-Control "public, immutable";
         }
         location /health { proxy_pass http://flask_app/health; access_log off; }
+        location /ready  { proxy_pass http://flask_app/ready;  access_log off; }
+        location / {
+          proxy_pass http://flask_app;
+          proxy_set_header Host              $host;
+          proxy_set_header X-Real-IP         $remote_addr;
+          proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+          proxy_connect_timeout 30s;
+          proxy_read_timeout    60s;
+        }
       }
     }
 ---
@@ -42,6 +45,10 @@ metadata:
   namespace: {{ .Values.namespace }}
 type: Opaque
 stringData:
-  S3_BUCKET: {{ .Values.config.s3Bucket | quote }}
-  AWS_REGION: {{ .Values.config.awsRegion | quote }}
-  SECRET_KEY: {{ .Values.config.secretKey | quote }}
+  STORAGE_BACKEND: {{ .Values.config.storageBackend | quote }}
+  S3_BUCKET:       {{ .Values.config.s3Bucket       | quote }}
+  AWS_REGION:      {{ .Values.config.awsRegion       | quote }}
+  MINIO_ENDPOINT:  {{ .Values.config.minioEndpoint   | quote }}
+  MINIO_ACCESS_KEY: {{ .Values.config.minioAccessKey | quote }}
+  MINIO_SECRET_KEY: {{ .Values.config.minioSecretKey | quote }}
+  SECRET_KEY:      {{ .Values.config.secretKey       | quote }}

@@ -3,14 +3,23 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>CSV Processor - DevOps Case Study</title>
+  <title>CSV Processor</title>
   <link rel="stylesheet" href="/static/css/main.css"/>
 </head>
 <body>
 <div class="container">
   <header class="header">
     <h1>&#128196; CSV File Processor</h1>
-    <p class="subtitle">Upload, process, and archive CSV files to AWS S3</p>
+    <p class="subtitle">Upload, process, and archive CSV files</p>
+    <div class="backend-info">
+      {% if storage_backend == 'minio' %}
+        <span class="badge badge-minio">&#127968; Storage: MinIO (local Minikube)</span>
+      {% elif storage_backend == 's3' %}
+        <span class="badge badge-s3">&#9749; Storage: AWS S3</span>
+      {% else %}
+        <span class="badge">Storage: Local only</span>
+      {% endif %}
+    </div>
   </header>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -43,11 +52,7 @@
       <table class="table">
         <thead>
           <tr>
-            <th>#</th>
-            <th>Filename</th>
-            <th>Processed At</th>
-            <th>Rows</th>
-            <th>S3 Path</th>
+            <th>#</th><th>Filename</th><th>Processed At (UTC)</th><th>Rows</th><th>Backend</th><th>Storage Path</th>
           </tr>
         </thead>
         <tbody>
@@ -57,11 +62,12 @@
             <td><span class="badge">{{ file.filename }}</span></td>
             <td>{{ file.processed_at }}</td>
             <td>{{ file.row_count }}</td>
+            <td>{{ file.backend }}</td>
             <td>
-              {% if file.s3_key %}
-                <code class="s3-path">s3://{{ file.s3_key }}</code>
+              {% if file.storage_key %}
+                <code class="s3-path">{{ file.storage_key }}</code>
               {% else %}
-                <span class="text-muted">N/A</span>
+                <span class="text-muted">–</span>
               {% endif %}
             </td>
           </tr>
@@ -76,7 +82,7 @@
   </section>
 
   <footer class="footer">
-    <p>DevOps Case Study &mdash; CSV Processor &bull; Python Flask + Nginx + Kubernetes</p>
+    <p>DevOps Case Study &mdash; CSV Processor &bull; Flask + Nginx + Kubernetes (Minikube / kops / AKS)</p>
   </footer>
 </div>
 <script src="/static/js/main.js"></script>

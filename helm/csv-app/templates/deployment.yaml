@@ -33,54 +33,50 @@ spec:
                   - key: node-type
                     operator: In
                     values: [{{ .Values.affinity.nodeType }}]
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [{{ .Release.Name }}-csv-app]
+                topologyKey: kubernetes.io/hostname
       {{- end }}
+
       initContainers:
         - name: static-files-init
           image: "{{ .Values.image.flaskApp.repository }}:{{ .Values.image.flaskApp.tag }}"
-          command: ["sh", "-c", "cp -r /app/static/. /shared-static/"]
+          imagePullPolicy: {{ .Values.image.flaskApp.pullPolicy }}
+          command: ["sh", "-c", "cp -rv /app/static/. /shared-static/"]
           volumeMounts:
             - name: shared-static
               mountPath: /shared-static
+
       containers:
         - name: flask-app
           image: "{{ .Values.image.flaskApp.repository }}:{{ .Values.image.flaskApp.tag }}"
           imagePullPolicy: {{ .Values.image.flaskApp.pullPolicy }}
           ports:
             - containerPort: 5000
-          env:
-            - name: S3_BUCKET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: S3_BUCKET
-            - name: AWS_REGION
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: AWS_REGION
-            - name: SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: SECRET_KEY
+          envFrom:
+            - secretRef:
+                name: {{ .Release.Name }}-secrets
           resources:
             {{- toYaml .Values.resources.flaskApp | nindent 12 }}
           livenessProbe:
-            httpGet:
-              path: /health
-              port: 5000
+            httpGet: { path: /health, port: 5000 }
             initialDelaySeconds: 15
             periodSeconds: 20
           readinessProbe:
-            httpGet:
-              path: /health
-              port: 5000
-            initialDelaySeconds: 5
+            httpGet: { path: /ready, port: 5000 }
+            initialDelaySeconds: 10
             periodSeconds: 10
           volumeMounts:
-            - name: uploads-storage
+            - name: uploads-data
               mountPath: /app/uploads
-            - name: processed-storage
+            - name: processed-data
               mountPath: /app/processed
 
         - name: nginx
@@ -98,25 +94,21 @@ spec:
               mountPath: /app/shared-static
               readOnly: true
           livenessProbe:
-            httpGet:
-              path: /health
-              port: 80
+            httpGet: { path: /health, port: 80 }
             initialDelaySeconds: 10
             periodSeconds: 15
           readinessProbe:
-            httpGet:
-              path: /health
-              port: 80
+            httpGet: { path: /health, port: 80 }
             initialDelaySeconds: 5
             periodSeconds: 10
 
       volumes:
-        - name: shared-static
+        - name: shared-static    # emptyDir – shared between init + nginx, NOT NFS
           emptyDir: {}
         - name: nginx-config
           configMap:
             name: {{ .Release.Name }}-nginx-config
-        - name: uploads-storage
+        - name: uploads-data
           emptyDir: {}
-        - name: processed-storage
+        - name: processed-data
           emptyDir: {}

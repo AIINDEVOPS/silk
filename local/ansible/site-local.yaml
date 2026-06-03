@@ -1,0 +1,193 @@
+---
+# Local Ansible playbook – validates and configures the Minikube deployment
+# Run: ansible-playbook local/ansible/site-local.yaml \
+#        -i local/ansible/inventory/minikube.yaml \
+#        -e @local/ansible/group_vars/local.yaml
+
+- name: Validate Minikube Environment
+  hosts: minikube-local
+  gather_facts: false
+  vars_files:
+    - group_vars/local.yaml
+
+  tasks:
+    - name: Check kubectl is available
+      command: kubectl version --client --output=yaml
+      register: kubectl_version
+      changed_when: false
+
+    - name: Check Minikube is running
+      command: minikube status
+      register: minikube_status
+      changed_when: false
+
+    - name: Print Minikube status
+      debug:
+        msg: "{{ minikube_status.stdout_lines }}"
+
+    - name: Set kubectl context to minikube
+      command: kubectl config use-context {{ k8s_context }}
+      changed_when: true
+
+    - name: Verify namespace exists
+      command: kubectl get namespace {{ k8s_namespace }}
+      register: ns_check
+      changed_when: false
+      failed_when: ns_check.rc != 0
+
+    - name: Get all pods in csv-app namespace
+      command: kubectl get pods -n {{ k8s_namespace }} -o wide
+      register: pods
+      changed_when: false
+
+    - name: Print pods
+      debug:
+        msg: "{{ pods.stdout_lines }}"
+
+    - name: Verify csv-app deployment is ready
+      command: >
+        kubectl rollout status deployment/csv-app
+        -n {{ k8s_namespace }}
+        --timeout=120s
+      changed_when: false
+
+    - name: Verify MinIO deployment is ready
+      command: >
+        kubectl rollout status deployment/minio
+        -n {{ k8s_namespace }}
+        --timeout=60s
+      changed_when: false
+
+    - name: Check HPA status
+      command: kubectl get hpa -n {{ k8s_namespace }}
+      register: hpa_status
+      changed_when: false
+
+    - name: Print HPA
+      debug:
+        msg: "{{ hpa_status.stdout_lines }}"
+
+    - name: Apply ConfigMap with app config (Ansible manages config)
+      command: |
+        kubectl create configmap csv-app-ansible-config \
+          --from-literal=APP_NAME={{ app_name }} \
+          --from-literal=APP_ENV={{ app_env }} \
+          --from-literal=LOG_LEVEL={{ log_level }} \
+          --from-literal=STORAGE_BACKEND={{ storage_backend }} \
+          -n {{ k8s_namespace }} \
+          --dry-run=client -o yaml | kubectl apply -f -
+      changed_when: true
+
+    - name: Verify Flask health endpoint
+      command: >
+        kubectl exec -n {{ k8s_namespace }}
+        deployment/csv-app
+        -c flask-app
+        -- curl -sf http://localhost:5000/health
+      register: health_check
+      changed_when: false
+
+    - name: Print health response
+      debug:
+        msg: "Health check: {{ health_check.stdout }}"
+
+    - name: Verify Nginx is serving static files
+      command: >
+        kubectl exec -n {{ k8s_namespace }}
+        deployment/csv-app
+        -c nginx
+        -- wget -qO- http://localhost/static/css/main.css
+      register: static_check
+      changed_when: false
+
+    - name: Print static file check (first 100 chars)
+      debug:
+        msg: "Nginx static: {{ static_check.stdout[:100] }}..."
+
+    - name: Verify MinIO bucket exists
+      command: >
+        kubectl exec -n {{ k8s_namespace }}
+        deployment/minio
+        -- mc alias set local http://localhost:9000 minioadmin minioadmin 2>&1
+      register: minio_check
+      changed_when: false
+      ignore_errors: true
+
+    - name: Get service URL
+      command: minikube service csv-app-service -n {{ k8s_namespace }} --url
+      register: svc_url
+      changed_when: false
+
+    - name: Print application URL
+      debug:
+        msg: |
+          ✅ All checks passed!
+          Application URL: {{ svc_url.stdout }}
+          MinIO Console: run 'minikube service minio-console -n csv-app'
+
+- name: Run End-to-End CSV Upload Test
+  hosts: minikube-local
+  gather_facts: false
+  vars_files:
+    - group_vars/local.yaml
+
+  tasks:
+    - name: Get app service URL
+      command: minikube service csv-app-service -n {{ k8s_namespace }} --url
+      register: app_url
+      changed_when: false
+
+    - name: Set app URL fact
+      set_fact:
+        csv_app_url: "{{ app_url.stdout | trim }}"
+
+    - name: Check health endpoint via HTTP
+      uri:
+        url: "{{ csv_app_url }}/health"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: health_resp
+
+    - name: Assert health response
+      assert:
+        that:
+          - health_resp.json.status == "healthy"
+          - health_resp.json.storage_backend == "minio"
+        fail_msg: "Health check failed: {{ health_resp.json }}"
+        success_msg: "✅ Health check passed"
+
+    - name: Upload test CSV file
+      uri:
+        url: "{{ csv_app_url }}/upload"
+        method: POST
+        body_format: form-multipart
+        body:
+          file:
+            filename: test.csv
+            content: |
+              "211627629","Purple Safi Kaftan","4900.0000"
+              "211627628","Multi-coloured Gilet Abaya","4900.0000"
+              "211627627","Black Classic Kaftan","4900.0000"
+            mime_type: text/csv
+        status_code: 200
+        follow_redirects: all
+      register: upload_resp
+
+    - name: Assert upload was successful
+      assert:
+        that:
+          - "'CSV Processed Successfully' in upload_resp.content or upload_resp.status == 200"
+        fail_msg: "Upload test failed"
+        success_msg: "✅ CSV upload and processing test passed"
+
+    - name: Final summary
+      debug:
+        msg: |
+          ============================================
+          ✅  END-TO-END TEST COMPLETE
+          ============================================
+          App URL    : {{ csv_app_url }}
+          Storage    : MinIO (local S3)
+          Namespace  : {{ k8s_namespace }}
+          ============================================

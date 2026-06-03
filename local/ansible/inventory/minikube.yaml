@@ -1,0 +1,16 @@
+---
+# Ansible inventory for local Minikube
+# Uses kubectl connection plugin – no SSH needed
+# Install: pip install ansible kubernetes
+# Set context: kubectl config use-context minikube
+
+all:
+  vars:
+    ansible_connection: local
+    k8s_context: minikube
+    k8s_namespace: csv-app
+
+  hosts:
+    minikube-local:
+      ansible_host: localhost
+      ansible_python_interpreter: "{{ ansible_playbook_python }}"

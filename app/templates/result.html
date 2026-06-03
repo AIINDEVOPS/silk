@@ -23,15 +23,29 @@
         <span class="meta-value">{{ rows|length }}</span>
       </div>
       <div class="meta-item">
-        <span class="meta-label">S3 Archive</span>
+        <span class="meta-label">Storage Backend</span>
         <span class="meta-value">
-          {% if s3_key %}
-            <code class="s3-path">s3://{{ s3_key }}</code>
+          {% if storage_backend == 'minio' %}
+            <span class="badge badge-minio">&#127968; MinIO (local)</span>
+          {% elif storage_backend == 's3' %}
+            <span class="badge badge-s3">&#9749; AWS S3</span>
           {% else %}
-            Not uploaded (check AWS config)
+            <span class="badge">Local only</span>
           {% endif %}
         </span>
       </div>
+      {% if storage_key %}
+      <div class="meta-item">
+        <span class="meta-label">Stored At</span>
+        <span class="meta-value">
+          {% if storage_backend == 'minio' %}
+            <code class="s3-path">{{ minio_endpoint }}/{{ s3_bucket }}/{{ storage_key }}</code>
+          {% else %}
+            <code class="s3-path">s3://{{ s3_bucket }}/{{ storage_key }}</code>
+          {% endif %}
+        </span>
+      </div>
+      {% endif %}
     </div>
   </section>
 
@@ -51,9 +65,7 @@
           {% for row in rows %}
           <tr>
             <td>{{ loop.index }}</td>
-            {% for cell in row %}
-            <td>{{ cell }}</td>
-            {% endfor %}
+            {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
           </tr>
           {% endfor %}
         </tbody>
