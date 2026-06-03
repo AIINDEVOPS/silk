@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CSV Processor - Azure</title>
+  <link rel="stylesheet" href="/static/css/main.css"/>
+</head>
+<body>
+<div class="container">
+  <header class="header">
+    <h1>&#128196; CSV File Processor</h1>
+    <p class="subtitle">Upload, process, and archive CSV files to Azure Blob Storage</p>
+    <span class="platform-badge">&#9729; Azure</span>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <section class="card upload-section">
+    <h2>Upload CSV File</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data" id="upload-form">
+      <div class="drop-zone" id="drop-zone">
+        <div class="drop-zone-icon">&#128190;</div>
+        <p>Drag &amp; drop your CSV file here or</p>
+        <label class="btn btn-primary" for="file-input">Browse File</label>
+        <input type="file" id="file-input" name="file" accept=".csv" style="display:none" onchange="showFileName(this)"/>
+        <p id="file-name" class="file-name"></p>
+      </div>
+      <button type="submit" class="btn btn-success btn-block" id="submit-btn" disabled>
+        &#9650; Upload &amp; Process
+      </button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Previously Processed Files</h2>
+    {% if processed_files %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Filename</th>
+            <th>Processed At</th>
+            <th>Rows</th>
+            <th>Azure Blob Path</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for file in processed_files %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><span class="badge">{{ file.filename }}</span></td>
+            <td>{{ file.processed_at }}</td>
+            <td>{{ file.row_count }}</td>
+            <td>
+              {% if file.blob_name %}
+                <code class="s3-path">{{ file.blob_name }}</code>
+              {% else %}
+                <span class="text-muted">N/A</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">
+        <p>&#128203; No files processed yet. Upload your first CSV file above.</p>
+      </div>
+    {% endif %}
+  </section>
+
+  <footer class="footer">
+    <p>DevOps Case Study &mdash; CSV Processor &bull; Python Flask + Nginx + AKS + Azure Blob Storage</p>
+  </footer>
+</div>
+<script src="/static/js/main.js"></script>
+</body>
+</html>

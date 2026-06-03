@@ -1,0 +1,53 @@
+# Azure Development environment overrides
+# Usage: helm upgrade --install csv-app ../../helm/csv-app \
+#          -f azure/helm/environments/azure-dev-values.yaml
+
+replicaCount: 1
+
+image:
+  flaskApp:
+    repository: YOUR_DOCKERHUB_USERNAME/csv-processor-azure
+    tag: latest
+    pullPolicy: Always
+
+namespace: csv-app
+
+service:
+  type: LoadBalancer
+  port: 80
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/health"
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+
+config:
+  s3Bucket: "csv-uploads"                    # Azure container name
+  awsRegion: "eastus"                        # Azure region
+  secretKey: "dev-secret-key"
+
+affinity:
+  nodeType: any
+
+resources:
+  flaskApp:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+podDisruptionBudget:
+  enabled: false
+
+# Azure-specific extra env vars (injected into Helm deployment template)
+extraEnv:
+  - name: AZURE_STORAGE_ACCOUNT
+    value: "devopscsvuploadsdev"
+  - name: AZURE_CONTAINER_NAME
+    value: "csv-uploads"
+  - name: APP_ENV
+    value: "development"

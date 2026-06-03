@@ -1,0 +1,47 @@
+# Azure Production environment overrides
+# Usage: helm upgrade --install csv-app ../../helm/csv-app \
+#          -f azure/helm/environments/azure-prod-values.yaml
+
+replicaCount: 4
+
+image:
+  flaskApp:
+    repository: YOUR_DOCKERHUB_USERNAME/csv-processor-azure
+    tag: latest
+    pullPolicy: Always
+
+namespace: csv-app
+
+service:
+  type: LoadBalancer
+  port: 80
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/health"
+    service.beta.kubernetes.io/azure-load-balancer-tcp-idle-timeout: "30"
+
+autoscaling:
+  enabled: true
+  minReplicas: 4
+  maxReplicas: 50
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+config:
+  s3Bucket: "csv-uploads"
+  awsRegion: "eastus"
+  secretKey: "OVERRIDE_IN_PIPELINE"
+
+affinity:
+  nodeType: ondemand
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+extraEnv:
+  - name: AZURE_STORAGE_ACCOUNT
+    value: "devopscsvuploads"
+  - name: AZURE_CONTAINER_NAME
+    value: "csv-uploads"
+  - name: APP_ENV
+    value: "production"

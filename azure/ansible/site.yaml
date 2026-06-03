@@ -1,0 +1,28 @@
+---
+- name: Configure CSV Application on Azure AKS Nodes
+  hosts: aks_cluster
+  become: true
+  gather_facts: true
+  vars_files:
+    - group_vars/azure.yaml
+  roles:
+    - role: nginx-config
+      tags: [nginx]
+    - role: app-config
+      tags: [app]
+
+- name: Verify Application Health
+  hosts: aks_cluster
+  gather_facts: false
+  tasks:
+    - name: Check application health
+      uri:
+        url: "http://{{ ansible_host }}/health"
+        status_code: 200
+      register: health
+      retries: 3
+      delay: 10
+
+    - name: Print health status
+      debug:
+        msg: "{{ inventory_hostname }} (Azure) is healthy: {{ health.json }}"
