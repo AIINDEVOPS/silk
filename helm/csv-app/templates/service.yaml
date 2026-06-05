@@ -4,19 +4,19 @@ metadata:
   name: {{ .Release.Name }}-service
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ .Release.Name }}-csv-app
-  {{- if .Values.service.annotations }}
+    app: {{ .Release.Name }}
+  {{- if and (eq .Values.service.type "LoadBalancer") .Values.service.annotations }}
   annotations:
     {{- toYaml .Values.service.annotations | nindent 4 }}
   {{- end }}
 spec:
   selector:
-    app: {{ .Release.Name }}-csv-app
+    app: {{ .Release.Name }}
   type: {{ .Values.service.type }}
   ports:
     - name: http
       port: {{ .Values.service.port }}
-      targetPort: 80
+      targetPort: 80    # nginx listens on port 80 inside the pod
       protocol: TCP
       {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
       nodePort: {{ .Values.service.nodePort }}

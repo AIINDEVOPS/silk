@@ -20,7 +20,7 @@ data:
       gzip_types    text/plain text/css application/javascript application/json;
       client_max_body_size 50M;
 
-      upstream flask_app { server localhost:5000; }
+      upstream flask_app { server 127.0.0.1:5000; }
 
       server {
         listen 80;
@@ -93,9 +93,6 @@ spec:
     metadata:
       labels:
         app: csv-app
-      annotations:
-        # Force pod restart when image changes
-        rollme: "{{ randAlphaNum 5 | quote }}"
     spec:
       # ── Init container ─────────────────────────────────────────────────
       # Copies static files from the app image into the shared emptyDir volume

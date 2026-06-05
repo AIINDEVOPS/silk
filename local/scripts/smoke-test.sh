@@ -62,7 +62,10 @@ check "MinIO API reachable from pod"  bash -c "kubectl exec -n $NAMESPACE deploy
 check "csv-uploads bucket exists"     bash -c "kubectl exec -n $NAMESPACE deployment/minio -- mc alias set local http://localhost:9000 minioadmin minioadmin 2>/dev/null && kubectl exec -n $NAMESPACE deployment/minio -- mc ls local/ | grep -q csv-uploads"
 
 header "End-to-End HTTP test"
-APP_URL=$(minikube service csv-app-service -n $NAMESPACE --url 2>/dev/null || echo "")
+APP_URL="${APP_URL:-}"
+if [ -z "$APP_URL" ]; then
+  APP_URL=$(minikube service csv-app-service -n $NAMESPACE --url 2>/dev/null || echo "")
+fi
 if [ -z "$APP_URL" ]; then
   yellow "Could not get app URL – skipping HTTP tests"
 else
@@ -85,12 +88,15 @@ else
   fi
 
   # CSV upload
-  echo '"ID","Name","Price"
+  TEST_CSV="${TMPDIR:-/tmp}/test-smoke.csv"
+  cat > "$TEST_CSV" <<'CSV'
+"ID","Name","Price"
 "001","Test Product","100.00"
-"002","Another Product","200.00"' > /tmp/test-smoke.csv
+"002","Another Product","200.00"
+CSV
 
   RESP=$(curl -sf -X POST "$APP_URL/upload" \
-    -F "file=@/tmp/test-smoke.csv;type=text/csv" \
+    -F "file=@${TEST_CSV};type=text/csv" \
     --max-time 30 || echo "")
 
   if echo "$RESP" | grep -qi "processed successfully\|rows"; then
@@ -100,7 +106,7 @@ else
     red "CSV upload + processing failed"
     ((FAIL++))
   fi
-  rm -f /tmp/test-smoke.csv
+  rm -f "$TEST_CSV"
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
@@ -113,7 +119,7 @@ echo "  Failed : $FAIL"
 echo "  Total  : $((PASS + FAIL))"
 echo "════════════════════════════════════════"
 
-if [ $APP_URL ]; then
+if [ -n "${APP_URL:-}" ]; then
   echo "  App URL    : $APP_URL"
 fi
 echo "  MinIO UI   : minikube service minio-console -n $NAMESPACE"

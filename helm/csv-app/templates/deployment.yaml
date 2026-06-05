@@ -1,17 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-csv-app
+  name: {{ .Release.Name }}
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ .Release.Name }}-csv-app
+    app: {{ .Release.Name }}
     chart: {{ .Chart.Name }}-{{ .Chart.Version }}
     release: {{ .Release.Name }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-csv-app
+      app: {{ .Release.Name }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -20,7 +22,7 @@ spec:
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-csv-app
+        app: {{ .Release.Name }}
         release: {{ .Release.Name }}
     spec:
       {{- if ne .Values.affinity.nodeType "any" }}
@@ -41,7 +43,7 @@ spec:
                   matchExpressions:
                     - key: app
                       operator: In
-                      values: [{{ .Release.Name }}-csv-app]
+                      values: [{{ .Release.Name }}]
                 topologyKey: kubernetes.io/hostname
       {{- end }}
 

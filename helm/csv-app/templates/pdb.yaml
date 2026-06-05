@@ -8,5 +8,5 @@ spec:
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-csv-app
+      app: {{ .Release.Name }}
 {{- end }}

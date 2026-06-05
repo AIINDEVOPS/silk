@@ -12,6 +12,7 @@ image:
     pullPolicy: IfNotPresent
 
 namespace: csv-app
+createNamespaceResource: false
 
 service:
   type: LoadBalancer

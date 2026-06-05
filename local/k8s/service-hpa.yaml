@@ -10,12 +10,11 @@ metadata:
 spec:
   selector:
     app: csv-app
-  type: NodePort
+  type: LoadBalancer
   ports:
     - name: http
       port: 80
       targetPort: 80
-      nodePort: 30080
 
 ---
 # Horizontal Pod Autoscaler (requires metrics-server addon in Minikube)

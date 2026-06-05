@@ -22,7 +22,7 @@ MINIKUBE_DRIVER  := docker
         build load \
         deploy-minio deploy-app deploy-helm \
         ansible-validate ansible-test \
-        open open-minio \
+        tunnel open open-minio \
         hpa-test hpa-watch \
         status logs \
         clean dev
@@ -55,7 +55,8 @@ help:
 	@echo "  make ansible-test      Run Ansible E2E test playbook"
 	@echo ""
 	@echo "  Test:"
-	@echo "  make open            Open app in browser"
+	@echo "  make tunnel          Start minikube tunnel (Mac fix – run once in separate terminal)"
+	@echo "  make open            Open app in browser (needs tunnel running)"
 	@echo "  make open-minio      Open MinIO console in browser"
 	@echo "  make hpa-test        Generate load to trigger HPA"
 	@echo "  make hpa-watch       Watch HPA scaling in real time"
@@ -125,6 +126,7 @@ deploy-minio:
 	@echo "==> Waiting for MinIO to be ready..."
 	kubectl rollout status deployment/minio -n $(NAMESPACE) --timeout=120s
 	@echo "==> Creating csv-uploads bucket..."
+	kubectl delete job/minio-setup -n $(NAMESPACE) --ignore-not-found
 	kubectl apply -f local/k8s/minio-init-job.yaml
 	kubectl wait --for=condition=complete job/minio-setup -n $(NAMESPACE) --timeout=120s || true
 	@echo "✅ MinIO ready!"
@@ -164,10 +166,25 @@ ansible-validate:
 ansible-test: ansible-validate
 	@echo "✅ Ansible validation complete!"
 
+# ── Tunnel (Mac + docker driver fix) ─────────────────────────────────────────
+# Run once in a dedicated terminal – keeps running, maps LoadBalancer → 127.0.0.1:8080
+# After tunnel is running: http://localhost:8080  opens the app (no sudo needed)
+tunnel:
+	@echo "==> Starting minikube tunnel (keep this terminal open)..."
+	@echo "    Once running, open: http://localhost:8080"
+	minikube tunnel
+
 # ── Open in browser ──────────────────────────────────────────────────────────
 open:
-	@echo "==> Opening CSV app in browser..."
-	minikube service csv-app-service -n $(NAMESPACE)
+	@echo "==> Getting app URL..."
+	$(eval EXT_IP := $(shell kubectl get svc csv-app-service -n $(NAMESPACE) -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null))
+	@if [ -n "$(EXT_IP)" ]; then \
+		echo "    App URL: http://$(EXT_IP):8080"; \
+		open "http://$(EXT_IP):8080"; \
+	else \
+		echo "    Tunnel not running – run 'make tunnel' in a separate terminal first"; \
+		echo "    Then re-run: make open"; \
+	fi
 
 open-minio:
 	@echo "==> Opening MinIO console (user: minioadmin / pass: minioadmin)..."

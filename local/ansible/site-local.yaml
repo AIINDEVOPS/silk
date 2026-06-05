@@ -68,7 +68,7 @@
         msg: "{{ hpa_status.stdout_lines }}"
 
     - name: Apply ConfigMap with app config (Ansible manages config)
-      command: |
+      shell: |
         kubectl create configmap csv-app-ansible-config \
           --from-literal=APP_NAME={{ app_name }} \
           --from-literal=APP_ENV={{ app_env }} \

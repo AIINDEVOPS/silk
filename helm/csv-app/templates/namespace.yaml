@@ -1,3 +1,4 @@
+{{- if .Values.createNamespaceResource }}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -5,3 +6,4 @@ metadata:
   labels:
     managed-by: helm
     release: {{ .Release.Name }}
+{{- end }}

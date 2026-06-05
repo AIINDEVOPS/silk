@@ -14,6 +14,7 @@ processed/
 *.log
 .DS_Store
 node_modules/
+.kilo/
 *.egg-info/
 dist/
 build/

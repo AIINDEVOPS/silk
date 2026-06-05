@@ -17,11 +17,12 @@ image:
     pullPolicy: IfNotPresent
 
 namespace: csv-app
+createNamespaceResource: false
 
 service:
-  type: NodePort
-  port: 80
-  nodePort: 30080
+  type: LoadBalancer
+  port: 8080
+  nodePort: null
   annotations: {}
 
 autoscaling:
@@ -29,13 +30,13 @@ autoscaling:
   minReplicas: 2
   maxReplicas: 5                 # reduced for local resources
   targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 85
 
 resources:
   flaskApp:
     requests:
       cpu: "100m"
-      memory: "128Mi"
+      memory: "256Mi"    # actual idle usage ~195Mi; 195/256 = 76% < 80% HPA threshold
     limits:
       cpu: "500m"
       memory: "512Mi"
