@@ -23,7 +23,7 @@ azure_region: eastus
 
 # Docker settings
 docker_registry: docker.io
-docker_image: YOUR_DOCKERHUB_USERNAME/csv-processor-azure
+docker_image: aiindevops/csv-processor-azure
 docker_tag: latest
 
 # Kubernetes namespace

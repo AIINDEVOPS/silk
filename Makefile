@@ -8,7 +8,7 @@
 #   make clean          # Tear down everything
 ##############################################################################
 
-DOCKERHUB_USER   ?= YOUR_DOCKERHUB_USERNAME
+DOCKERHUB_USER   ?= aiindevops
 IMAGE_NAME       := csv-processor
 IMAGE_TAG        := local
 NAMESPACE        := csv-app

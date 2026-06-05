@@ -16,6 +16,101 @@
 
 ## Architecture Overview
 
+### System Diagram
+
+```mermaid
+graph TB
+    subgraph Internet
+        User([User Browser])
+        GH([GitHub])
+    end
+
+    subgraph CI["CI/CD (GitHub Actions)"]
+        direction LR
+        GHA[Build & Test] --> DH[(DockerHub\naiindevops/csv-processor)]
+        GHA --> HelmDeploy[Helm Deploy]
+    end
+
+    subgraph AWS["AWS Cloud (us-east-1)"]
+        subgraph VPC["VPC 172.20.0.0/16"]
+            NLB[Network Load Balancer]
+
+            subgraph K8S["Kubernetes Cluster (kops)"]
+                subgraph Masters["Control Plane – Fixed (no CA)"]
+                    M1[Master AZ-a\nm5.large]
+                    M2[Master AZ-b\nm5.large]
+                    M3[Master AZ-c\nm5.large]
+                end
+
+                CA[Cluster Autoscaler]
+
+                subgraph Workers["Worker Node Instance Groups"]
+                    IG1["On-Demand IG\nm5/m5a/m5n/m4 xlarge\nmin:2 max:10"]
+                    IG2["Spot IG\nm5/m4/r5/c5 xlarge\nmin:0 max:20"]
+                    IG3["GPU Spot IG\np3/p2/g4dn\nmin:0 max:5"]
+                end
+
+                CA --> IG1
+                CA --> IG2
+                CA --> IG3
+
+                subgraph NS["namespace: csv-app"]
+                    HPA[HPA\nCPU>70% or MEM>85%]
+
+                    subgraph POD["Pod (2–5 replicas)"]
+                        direction LR
+                        IC[Init Container\ncopy static files]
+                        NGINX[Nginx :80\nreverse proxy\nstatic files]
+                        FLASK[Flask App :5000\nCSV Processor]
+                        ED[(emptyDir\nshared-static\nCSS / JS)]
+
+                        IC -->|"cp /app/static → /shared-static"| ED
+                        NGINX -->|"proxy_pass 127.0.0.1:5000"| FLASK
+                        NGINX -->|"alias /app/shared-static/"| ED
+                    end
+
+                    SVC[Service\nLoadBalancer :80]
+                    CM[ConfigMap\ncreated by Ansible]
+                    SEC[Secret\ncreated by Ansible]
+                end
+
+                HPA -->|scale| POD
+                SVC --> POD
+                CM --> FLASK
+                SEC --> FLASK
+            end
+
+            S3["S3 Bucket\ndevops-csv-uploads"]
+        end
+    end
+
+    subgraph Lifecycle["S3 Glacier Lifecycle (Terraform)"]
+        direction LR
+        STD[STANDARD\nDay 0] -->|30d| IA[STANDARD_IA]
+        IA -->|60d| GIR[GLACIER_IR]
+        GIR -->|90d| GL[GLACIER]
+        GL -->|185d| DA[DEEP_ARCHIVE]
+        DA -->|~6yr| DEL[DELETE]
+    end
+
+    subgraph Local["Local Dev (Minikube)"]
+        MK[Minikube\nminikube tunnel]
+        MINIO[(MinIO\nlocal S3)]
+    end
+
+    User --> NLB
+    NLB --> SVC
+    FLASK -->|"upload processed CSV"| S3
+    S3 --> Lifecycle
+    GH --> CI
+    DH --> POD
+    HelmDeploy --> NS
+    MK -. "make dev\nhttp://localhost:8080" .-> User
+    FLASK -. "local" .-> MINIO
+```
+
+### ASCII Overview
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         AWS Cloud Infrastructure                             │

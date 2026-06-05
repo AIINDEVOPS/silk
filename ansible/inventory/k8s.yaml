@@ -1,0 +1,14 @@
+---
+# Ansible inventory for Kubernetes cluster management
+# The playbook runs on localhost and talks to the cluster via kubeconfig.
+# No SSH into nodes required – kubernetes.core module uses the K8s API directly.
+#
+# Usage:
+#   export KUBECONFIG=~/.kube/config        # or /home/ubuntu/.kube/config on the bastion
+#   ansible-playbook ansible/site.yaml -i ansible/inventory/k8s.yaml
+
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+      ansible_python_interpreter: "{{ ansible_playbook_python }}"

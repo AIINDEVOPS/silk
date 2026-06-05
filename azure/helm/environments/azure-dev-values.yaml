@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   flaskApp:
-    repository: YOUR_DOCKERHUB_USERNAME/csv-processor-azure
+    repository: aiindevops/csv-processor-azure
     tag: latest
     pullPolicy: Always
 

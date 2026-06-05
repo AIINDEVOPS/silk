@@ -21,12 +21,12 @@ s3_prefix: processed
 
 # Docker settings
 docker_registry: docker.io
-docker_image: YOUR_DOCKERHUB_USERNAME/csv-processor
+docker_image: aiindevops/csv-processor
 docker_tag: latest
 
-# Kubernetes namespace
+# Kubernetes
 k8s_namespace: csv-app
-k8s_kubeconfig: /home/ubuntu/.kube/config
+k8s_kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('~/.kube/config') }}"
 
 # Logging
 log_level: INFO

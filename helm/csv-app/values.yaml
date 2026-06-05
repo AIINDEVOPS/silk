@@ -3,7 +3,7 @@ replicaCount: 2
 
 image:
   flaskApp:
-    repository: YOUR_DOCKERHUB_USERNAME/csv-processor
+    repository: aiindevops/csv-processor
     tag: latest
     pullPolicy: Always
   nginx:

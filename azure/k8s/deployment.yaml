@@ -129,7 +129,7 @@ spec:
       # Init container: copy static files → emptyDir volume (not NFS)
       initContainers:
         - name: static-files-init
-          image: YOUR_DOCKERHUB_USERNAME/csv-processor-azure:latest
+          image: aiindevops/csv-processor-azure:latest
           command: ["sh", "-c", "cp -r /app/static/. /shared-static/ && echo Done"]
           volumeMounts:
             - name: shared-static
@@ -138,7 +138,7 @@ spec:
       containers:
         # ── Flask App ──────────────────────────────────────
         - name: flask-app
-          image: YOUR_DOCKERHUB_USERNAME/csv-processor-azure:latest
+          image: aiindevops/csv-processor-azure:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5000

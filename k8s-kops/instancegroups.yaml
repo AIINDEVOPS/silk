@@ -1,5 +1,7 @@
 # ─────────────────────────────────────────
 # MASTER Instance Groups (On-Demand only)
+# Fixed size — never managed by Cluster Autoscaler.
+# CA tags intentionally absent: auto-scaling masters breaks etcd quorum.
 # ─────────────────────────────────────────
 ---
 apiVersion: kops.k8s.io/v1alpha2
@@ -18,9 +20,6 @@ spec:
   role: Master
   subnets:
     - us-east-1a
-  cloudLabels:
-    k8s.io/cluster-autoscaler/prod.k8s.example.com: "owned"
-    k8s.io/cluster-autoscaler/enabled: "true"
 ---
 apiVersion: kops.k8s.io/v1alpha2
 kind: InstanceGroup
@@ -38,9 +37,6 @@ spec:
   role: Master
   subnets:
     - us-east-1b
-  cloudLabels:
-    k8s.io/cluster-autoscaler/prod.k8s.example.com: "owned"
-    k8s.io/cluster-autoscaler/enabled: "true"
 ---
 apiVersion: kops.k8s.io/v1alpha2
 kind: InstanceGroup
@@ -58,9 +54,6 @@ spec:
   role: Master
   subnets:
     - us-east-1c
-  cloudLabels:
-    k8s.io/cluster-autoscaler/prod.k8s.example.com: "owned"
-    k8s.io/cluster-autoscaler/enabled: "true"
 
 # ─────────────────────────────────────────
 # NODES: On-Demand Instance Group

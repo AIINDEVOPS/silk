@@ -1,29 +1,148 @@
 ---
-# Main Ansible playbook - DevOps Case Study
-- name: Configure CSV Application Servers
-  hosts: k8s_workers
-  become: true
-  gather_facts: true
+# DevOps Case Study – Main Ansible playbook
+# Manages application configuration for the Kubernetes deployment.
+#
+# Usage (against a running kops/EKS/Minikube cluster):
+#   ansible-playbook ansible/site.yaml \
+#     -i ansible/inventory/k8s.yaml \
+#     -e @ansible/group_vars/all.yaml \
+#     -e target_env=production
+#
+# Prerequisites:
+#   pip install ansible kubernetes
+#   ansible-galaxy collection install kubernetes.core
+
+# ── Play 1: Render and apply Kubernetes ConfigMap + Secret ───────────────────
+- name: Manage Kubernetes application configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
   vars_files:
     - group_vars/all.yaml
-  roles:
-    - role: nginx-config
-      tags: [nginx]
-    - role: app-config
-      tags: [app]
+  vars:
+    target_env: "{{ lookup('env', 'APP_ENV') | default('production') }}"
 
-- name: Verify Application Health
-  hosts: k8s_workers
-  gather_facts: false
   tasks:
-    - name: Check application health endpoint
-      uri:
-        url: "http://{{ ansible_host }}/health"
-        status_code: 200
-      register: health
-      retries: 3
-      delay: 10
+    - name: Ensure kubernetes.core collection is available
+      command: ansible-galaxy collection list kubernetes.core
+      register: collection_check
+      changed_when: false
+      failed_when: false
 
-    - name: Print health status
+    - name: Apply app ConfigMap (non-sensitive config via Ansible)
+      kubernetes.core.k8s:
+        kubeconfig: "{{ k8s_kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: csv-app-config
+            namespace: "{{ k8s_namespace }}"
+            labels:
+              app: csv-processor
+              managed-by: ansible
+              environment: "{{ target_env }}"
+          data:
+            APP_NAME: "{{ app_name }}"
+            APP_ENV: "{{ target_env }}"
+            APP_VERSION: "{{ app_version }}"
+            LOG_LEVEL: "{{ log_level }}"
+            LOG_FORMAT: "{{ log_format }}"
+            AWS_REGION: "{{ aws_region }}"
+            FLASK_WORKERS: "{{ flask_workers | string }}"
+            FLASK_TIMEOUT: "{{ flask_timeout | string }}"
+            NGINX_CLIENT_MAX_BODY_SIZE: "{{ nginx_client_max_body_size }}"
+
+    - name: Apply app Secret (sensitive config via Ansible + Vault)
+      kubernetes.core.k8s:
+        kubeconfig: "{{ k8s_kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: csv-app-secret
+            namespace: "{{ k8s_namespace }}"
+            labels:
+              app: csv-processor
+              managed-by: ansible
+          type: Opaque
+          stringData:
+            S3_BUCKET: "{{ s3_bucket }}"
+            SECRET_KEY: "{{ vault_secret_key | default('change-me-use-vault') }}"
+            # AWS credentials injected via IAM role (IRSA) in production;
+            # set here only for environments without IRSA:
+            # AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key | default('') }}"
+            # AWS_SECRET_ACCESS_KEY: "{{ vault_aws_secret_key | default('') }}"
+
+    - name: Patch Deployment to reference Ansible-managed ConfigMap
+      kubernetes.core.k8s:
+        kubeconfig: "{{ k8s_kubeconfig }}"
+        state: patched
+        kind: Deployment
+        name: csv-app
+        namespace: "{{ k8s_namespace }}"
+        definition:
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: flask-app
+                    envFrom:
+                      - configMapRef:
+                          name: csv-app-config
+                      - secretRef:
+                          name: csv-app-secret
+
+    - name: Verify ConfigMap was applied
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ k8s_kubeconfig }}"
+        kind: ConfigMap
+        name: csv-app-config
+        namespace: "{{ k8s_namespace }}"
+      register: cm_info
+
+    - name: Print ConfigMap keys
       debug:
-        msg: "{{ inventory_hostname }} is healthy: {{ health.json }}"
+        msg: "ConfigMap csv-app-config applied with keys: {{ cm_info.resources[0].data.keys() | list }}"
+
+# ── Play 2: Verify deployment health after config change ─────────────────────
+- name: Verify application health after config rollout
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - group_vars/all.yaml
+
+  tasks:
+    - name: Wait for deployment rollout to complete
+      kubernetes.core.k8s_rollout_status:
+        kubeconfig: "{{ k8s_kubeconfig }}"
+        kind: Deployment
+        name: csv-app
+        namespace: "{{ k8s_namespace }}"
+        wait_timeout: 120
+
+    - name: Get pod list
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ k8s_kubeconfig }}"
+        kind: Pod
+        namespace: "{{ k8s_namespace }}"
+        label_selectors:
+          - app=csv-app
+      register: pods
+
+    - name: Check Flask health endpoint from first running pod
+      kubernetes.core.k8s_exec:
+        kubeconfig: "{{ k8s_kubeconfig }}"
+        namespace: "{{ k8s_namespace }}"
+        pod: "{{ pods.resources | selectattr('status.phase', 'equalto', 'Running') | map(attribute='metadata.name') | first }}"
+        container: flask-app
+        command: ["curl", "-sf", "http://localhost:5000/health"]
+      register: health_exec
+      changed_when: false
+
+    - name: Print health result
+      debug:
+        msg: "Health check: {{ health_exec.stdout }}"
