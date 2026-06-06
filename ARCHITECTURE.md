@@ -27,7 +27,7 @@ graph TB
 
     subgraph CI["CI/CD (GitHub Actions)"]
         direction LR
-        GHA[Build & Test] --> DH[(DockerHub\naiindevops/csv-processor)]
+        GHA[Build & Test] --> DH[(DockerHub\ndeepak415/csv-processor)]
         GHA --> HelmDeploy[Helm Deploy]
     end
 

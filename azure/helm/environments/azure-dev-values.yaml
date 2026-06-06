@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   flaskApp:
-    repository: aiindevops/csv-processor-azure
+    repository: deepak415/csv-processor-azure
     tag: latest
     pullPolicy: Always
 

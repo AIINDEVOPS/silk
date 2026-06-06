@@ -8,7 +8,7 @@
 #   make clean          # Tear down everything
 ##############################################################################
 
-DOCKERHUB_USER   ?= aiindevops
+DOCKERHUB_USER   ?= deepak415
 IMAGE_NAME       := csv-processor
 IMAGE_TAG        := local
 NAMESPACE        := csv-app

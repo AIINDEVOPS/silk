@@ -122,7 +122,7 @@ spec:
       # Init container: copy static files to shared emptyDir volume
       initContainers:
         - name: static-files-init
-          image: aiindevops/csv-processor:latest
+          image: deepak415/csv-processor:latest
           command:
             - sh
             - -c
@@ -137,7 +137,7 @@ spec:
       containers:
         # ── Container 1: Flask App ──────────────────────
         - name: flask-app
-          image: aiindevops/csv-processor:latest
+          image: deepak415/csv-processor:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5000

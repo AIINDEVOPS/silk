@@ -3,7 +3,7 @@ replicaCount: 2
 
 image:
   flaskApp:
-    repository: aiindevops/csv-processor
+    repository: deepak415/csv-processor
     tag: latest
     pullPolicy: Always
   nginx:
