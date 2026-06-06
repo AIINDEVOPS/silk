@@ -31,14 +31,14 @@ on your local Mac using Minikube.
 │  │  └─────────────────────────────────────────────────────────────┘  │   │
 │  │                                                                    │   │
 │  │  Services:                                                         │   │
-│  │  csv-app-service  NodePort :30080  → browser access              │   │
-│  │  minio-console    NodePort :30901  → MinIO web UI                │   │
+│  │  csv-app-service  LoadBalancer 127.0.0.1:8080  (minikube tunnel) │   │
+│  │  minio-console    NodePort :30901              → MinIO web UI    │   │
 │  │                                                                    │   │
-│  │  HPA: cpu>70% or mem>80% → scale pods (2→5)                      │   │
+│  │  HPA: cpu>70% or mem>85% → scale pods (2→5)                      │   │
 │  │  metrics-server addon: required for HPA                           │   │
 │  └────────────────────────────────────────────────────────────────────┘  │
 │                                                                             │
-│  minikube tunnel / NodePort → http://$(minikube ip):30080                │
+│  minikube tunnel → http://localhost:8080  (stable, no NodePort needed)   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 CSV Upload Flow:
@@ -204,10 +204,10 @@ kubectl get all -n csv-app
 # pod/csv-app-xxx-yyy            2/2     Running   0          60s   ← 2 containers!
 # pod/csv-app-xxx-zzz            2/2     Running   0          60s
 # pod/minio-xxx-aaa              1/1     Running   0          90s
-# NAME                    TYPE       CLUSTER-IP     PORT(S)
-# service/csv-app-service NodePort   10.96.x.x      80:30080/TCP
-# service/minio           ClusterIP  10.96.x.x      9000/TCP
-# service/minio-console   NodePort   10.96.x.x      9001:30901/TCP
+# NAME                    TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)
+# service/csv-app-service LoadBalancer   10.96.x.x      127.0.0.1     8080:xxxxx/TCP
+# service/minio           ClusterIP      10.96.x.x      <none>        9000/TCP
+# service/minio-console   NodePort       10.96.x.x      <none>        9001:30901/TCP
 # NAME                      READY   UP-TO-DATE   AVAILABLE
 # deployment.apps/csv-app   2/2     2            2
 # NAME                                   REFERENCE            TARGETS        MINPODS
@@ -237,22 +237,23 @@ kubectl exec -n csv-app deployment/csv-app -c flask-app \
 
 ### Step 6 — Open Application in Browser
 
+The service type is `LoadBalancer`. On Mac with the docker driver the cluster IP is
+not routable from the host — run `minikube tunnel` in a **separate terminal** first:
+
 ```bash
-# Method 1: Minikube service (auto-opens browser)
-minikube service csv-app-service -n csv-app
-# 🎉 Opens http://127.0.0.1:<random-port>
+# Terminal 1 (keep open):
+minikube tunnel
+# ✅  Tunnel successfully started
+# 📌  NOTE: Please do not close this terminal as this process must stay alive for the tunnel to be accessible ...
 
-# Method 2: Get URL only
-minikube service csv-app-service -n csv-app --url
-# http://127.0.0.1:55432
-
-# Method 3: Port forward
-kubectl port-forward svc/csv-app-service 8080:80 -n csv-app &
-# Then open http://localhost:8080
-
-# Make:
+# Terminal 2:
+open http://localhost:8080
+# Or:
 make open
 ```
+
+Once the tunnel is running the LoadBalancer EXTERNAL-IP becomes `127.0.0.1` permanently —
+no random ports, no port-forward needed.
 
 ### Step 7 — Upload and Process the CSV File
 
