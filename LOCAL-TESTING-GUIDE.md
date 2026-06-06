@@ -198,7 +198,18 @@ make deploy-helm
 ### Step 5 — Verify the Deployment
 
 ```bash
-# See all resources
+# See all resources — expected output shown in screenshot below
+kubectl get pods,svc,hpa -n csv-app -o wide
+```
+
+![kubectl pods svc hpa](screenshots/pods-svc-hpa-status-kubectl.png)
+
+> 2/2 Running = Nginx + Flask both healthy in the same pod.
+> HPA shows `cpu:2%/70%` and `memory:59%/85%` at idle — well below scale-up thresholds.
+> LoadBalancer EXTERNAL-IP `127.0.0.1` is assigned by `minikube tunnel`.
+
+```bash
+# Full resource listing
 kubectl get all -n csv-app
 # NAME                           READY   STATUS    RESTARTS   AGE
 # pod/csv-app-xxx-yyy            2/2     Running   0          60s   ← 2 containers!
@@ -257,11 +268,20 @@ no random ports, no port-forward needed.
 
 ### Step 7 — Upload and Process the CSV File
 
-1. Open the app URL in your browser
-2. Click **Browse File** or drag the `soh.csv` file onto the drop zone
-3. Click **Upload & Process**
-4. The page will display all 751 rows from the CSV file in a table
-5. The file is uploaded to MinIO automatically
+1. Open `http://localhost:8080` in your browser
+
+![Upload form — empty state](screenshots/CSV_File_Processor_1.png)
+
+2. Click **Browse File** or drag `tasks/soh-1-.csv` onto the drop zone
+
+![File selected ready to upload](screenshots/CSV_File_Processor_2.png)
+
+3. Click **Upload & Process** — Flask parses all rows and renders the result table
+
+![CSV result — 751 rows processed](screenshots/CSV_File_Processor_3.png)
+
+> The result page shows: filename, total rows (751), storage backend (MinIO local),
+> and the full MinIO path where the file was stored.
 
 Verify the upload reached MinIO:
 ```bash
@@ -278,11 +298,22 @@ kubectl exec -n csv-app deployment/minio \
 ```bash
 minikube service minio-console -n csv-app
 # Opens http://127.0.0.1:<port>
-# Username: minioadmin
-# Password: minioadmin
 ```
 
-Navigate to: **Buckets → csv-uploads → processed/** to see uploaded CSVs.
+Login with `minioadmin` / `minioadmin`:
+
+![MinIO login page](screenshots/Minio_Storage_1.png)
+
+Navigate to **Buckets → csv-uploads** to see the bucket with the `processed/` prefix:
+
+![MinIO bucket browser](screenshots/Minio_Storage_2.png)
+
+Drill into `processed/2026/06/06/` to see the uploaded CSV files:
+
+![MinIO processed files](screenshots/Minio_Storage_3.png)
+
+> Files are stored at `processed/YYYY/MM/DD/<timestamp>_<filename>.csv` — the same
+> path structure that the Terraform S3 lifecycle policy targets in production.
 
 This demonstrates the **S3 Glacier lifecycle** concept – in production the
 Terraform S3 lifecycle rules move files:
@@ -362,8 +393,12 @@ helm template prod helm/csv-app -f helm/environments/prod-values.yaml \
 minikube dashboard
 # Auto-opens in browser
 # Navigate to: Workloads → Deployments → csv-app
-# Shows pods, containers, volumes, HPA
 ```
+
+![Minikube dashboard — workload status](screenshots/minikube-dashboard-status.png)
+
+> Dashboard filtered to `csv-app` namespace: 2 Deployments running, 3 Pods running
+> (2 app + 1 MinIO), 4 Replica Sets, 1 completed Job (MinIO bucket init).
 
 ---
 

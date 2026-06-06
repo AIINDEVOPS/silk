@@ -229,22 +229,85 @@ kubectl get pods,svc,hpa -n csv-app
 
 ## Screenshots
 
-### Upload form and previously processed files
-![Upload Form](docs/screenshots/01-upload-form.png)
+### 1. Application — Upload form (`http://localhost:8080`)
 
-### CSV result — 751 rows rendered
-![CSV Result](docs/screenshots/02-csv-result.png)
+> CSV File Processor running on Minikube via `minikube tunnel`. Storage backend shows
+> **MinIO (local Minikube)** — the S3-compatible local object store.
 
-### MinIO console — processed CSVs in bucket
-![MinIO Console](docs/screenshots/03-minio-console.png)
+![CSV File Processor — upload form](screenshots/CSV_File_Processor_1.png)
 
-### Kubernetes pods, services, HPA
-![kubectl output](docs/screenshots/04-kubectl-get.png)
+---
 
-### Minikube dashboard — workloads view
-![Minikube Dashboard](docs/screenshots/05-minikube-dashboard.png)
+### 2. File selected — ready to process
 
-> **To add screenshots:** create `docs/screenshots/` and save images with the filenames above.
+> `soh-1-.csv` (751 fashion products) selected via drag-drop. Clicking **Upload & Process**
+> sends the file to Flask, parses every row, uploads to MinIO, and renders the result table.
+
+![CSV File Processor — file selected](screenshots/CSV_File_Processor_2.png)
+
+---
+
+### 3. CSV processed — 751 rows displayed
+
+> Flask parsed all 751 rows (Product ID, Name, Price) and stored the file at
+> `minio:9000/csv-uploads/processed/2026/06/06/20260606_064540_soh-1-.csv`.
+> Storage backend, total rows, and full MinIO path are shown on the result page.
+
+![CSV File Processor — result 751 rows](screenshots/CSV_File_Processor_3.png)
+
+---
+
+### 4. Kubernetes pods, services, and HPA
+
+> `kubectl get pods,svc,hpa -n csv-app -o wide` shows:
+> - **2/2 Running** pods (Nginx sidecar + Flask in same pod)
+> - **LoadBalancer** service with EXTERNAL-IP `127.0.0.1:8080` (via `minikube tunnel`)
+> - **HPA**: CPU `2%/70%`, Memory `59%/85%` — both well below thresholds → 2 replicas idle
+
+![kubectl pods svc hpa](screenshots/pods-svc-hpa-status-kubectl.png)
+
+---
+
+### 5. MinIO login page
+
+> MinIO Object Store console running inside the Minikube cluster, accessible via
+> `minikube service minio-console -n csv-app`. Credentials: `minioadmin / minioadmin`.
+
+![MinIO login](screenshots/Minio_Storage_1.png)
+
+---
+
+### 6. MinIO bucket browser — `csv-uploads`
+
+> The `csv-uploads` bucket was created by the init job (`minio-init-job.yaml`).
+> All processed CSVs land under the `processed/` prefix, mirroring the S3 layout
+> used in production (managed by the Terraform lifecycle policy).
+
+![MinIO bucket — csv-uploads](screenshots/Minio_Storage_2.png)
+
+---
+
+### 7. MinIO processed files — `processed/2026/06/06/`
+
+> Four uploaded CSVs stored under the `YYYY/MM/DD` date-partitioned path:
+> - `20260606_064139_soh-1-.csv` — first upload
+> - `20260606_064255_demo-sample.csv` — demo 3-row sample
+> - `20260606_064255_soh-1-.csv` — second upload
+> - `20260606_064540_soh-1-.csv` — third upload (shown in result screenshot above)
+
+![MinIO processed files](screenshots/Minio_Storage_3.png)
+
+---
+
+### 8. Minikube dashboard — Workload Status
+
+> Kubernetes dashboard filtered to `csv-app` namespace shows:
+> - **2 Deployments** running (`csv-app` + `minio`)
+> - **3 Pods** running (2 app pods `2/2` + 1 MinIO pod)
+> - **4 Replica Sets** (current + previous rollout history)
+> - **1 Job** completed (MinIO bucket init job)
+
+![Minikube dashboard workload status](screenshots/minikube-dashboard-status.png)
 
 ---
 
