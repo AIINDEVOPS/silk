@@ -1,8 +1,0 @@
-bind = "0.0.0.0:{{ flask_app_port }}"
-workers = {{ flask_workers }}
-timeout = {{ flask_timeout }}
-worker_class = "sync"
-accesslog = "/var/log/csv-app/access.log"
-errorlog = "/var/log/csv-app/error.log"
-loglevel = "{{ log_level | lower }}"
-preload_app = True

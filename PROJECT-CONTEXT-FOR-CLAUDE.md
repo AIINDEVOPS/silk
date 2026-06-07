@@ -49,20 +49,13 @@ deployed on Kubernetes with full DevOps tooling.
 - Bucket: devops-csv-uploads — private, AES-256, versioning enabled
 - Lifecycle: Day 0 STANDARD → Day 30 STANDARD_IA → Day 90 GLACIER_IR → Day 180 GLACIER → Day 365 DEEP_ARCHIVE → Day 2555 DELETE
 
-### CI/CD (GitHub Actions)
-- `.github/workflows/ci-cd.yaml`
-- Jobs: test (pytest + flake8) → helm-validate → terraform validate → build+push DockerHub → deploy-dev → deploy-prod
-
-### Azure AKS
-- `azure/` folder: K8s manifests, Helm values (azure-dev, azure-prod), Ansible group_vars
-
 ---
 
 ## Documentation already created
 
 ### Files in repo
 - `README.md` — GitHub front page: requirements table, Mermaid architecture diagram, quick-start, 8 screenshots, component breakdown, tech stack
-- `ARCHITECTURE.md` — deep-dive: system Mermaid diagram, ASCII pod diagram, kops table, S3 lifecycle, CI/CD flow, repo structure
+- `ARCHITECTURE.md` — deep-dive: system Mermaid diagram, ASCII pod diagram, kops table, S3 lifecycle, repo structure
 - `LOCAL-TESTING-GUIDE.md` — step-by-step Minikube guide with embedded screenshots
 - `DevOps-CaseStudy-Submission.docx` — 5MB Word document (14 sections, all screenshots embedded)
 - `screenshots/architecture-diagram.png` — matplotlib-generated full-colour system diagram
@@ -94,12 +87,10 @@ deployed on Kubernetes with full DevOps tooling.
 8. HPA Autoscaling (config YAML, memory math, live output)
 9. Ansible Configuration Management (full playbook excerpt)
 10. S3 Storage + Glacier Lifecycle — Terraform (lifecycle table, resources)
-11. CI/CD Pipeline — GitHub Actions (pipeline stages, secrets)
-12. Azure AKS Deployment
-13. Local Development — Minikube Step-by-Step (10 steps with commands)
-14. Application Screenshots (Figures 2–9, all 8 screenshots embedded)
-15. Repository Structure (full tree)
-16. Technology Stack Summary (18-row table)
+11. Local Development — Minikube Step-by-Step (10 steps with commands)
+12. Application Screenshots (Figures 2–9, all 8 screenshots embedded)
+13. Repository Structure (full tree)
+14. Technology Stack Summary (table)
 
 ---
 
