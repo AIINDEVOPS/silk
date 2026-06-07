@@ -6,11 +6,13 @@ terraform {
       version = "~> 5.0"
     }
   }
-  backend "s3" {
-    bucket = "terraform-state-devops-case-study"
-    key    = "s3/terraform.tfstate"
-    region = "us-east-1"
-  }
+  # Local state — no remote backend required to run this
+  # To use remote state, uncomment and configure:
+  # backend "s3" {
+  #   bucket = "your-terraform-state-bucket"
+  #   key    = "s3/terraform.tfstate"
+  #   region = "us-east-1"
+  # }
 }
 
 provider "aws" {
@@ -48,55 +50,77 @@ resource "aws_s3_bucket_public_access_block" "csv_uploads" {
   restrict_public_buckets = true
 }
 
-# ── S3 Lifecycle: Standard → Standard-IA → Glacier → Delete ─────────────────
+# ── S3 Glacier Transition — as required by the assignment ────────────────────
+#
+# Assignment requirement: "Waiting you to implement s3 glacier transition on s3 config"
+#
+# Lifecycle flow for processed CSV files:
+#
+#   Day 0    Upload        →  STANDARD         (full performance, instant access)
+#   Day 30   Transition    →  STANDARD_IA      (~40% cheaper, infrequent access)
+#   Day 90   Transition    →  GLACIER_IR       (~68% cheaper, millisecond retrieval)
+#   Day 180  Transition    →  GLACIER          (~80% cheaper, 3-5 hour retrieval)
+#   Day 365  Transition    →  DEEP_ARCHIVE     (~95% cheaper, 12 hour retrieval)
+#   Day 2555 Expiration    →  DELETE           (7-year compliance retention window)
+#
 resource "aws_s3_bucket_lifecycle_configuration" "csv_uploads" {
   bucket = aws_s3_bucket.csv_uploads.id
 
+  # Rule 1: Glacier transition for processed CSV files
   rule {
-    id     = "processed-csv-lifecycle"
+    id     = "csv-glacier-transition"
     status = "Enabled"
 
     filter {
       prefix = "processed/"
     }
 
-    # Move to Standard-IA after 30 days (lower cost, slightly slower access)
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
     }
 
-    # Move to S3 Glacier Instant Retrieval after 90 days
     transition {
       days          = 90
       storage_class = "GLACIER_IR"
     }
 
-    # Move to S3 Glacier Flexible Retrieval after 180 days (cheapest archive)
     transition {
       days          = 180
       storage_class = "GLACIER"
     }
 
-    # Move to S3 Glacier Deep Archive after 365 days (lowest cost long-term)
     transition {
       days          = 365
       storage_class = "DEEP_ARCHIVE"
     }
 
-    # Delete objects after 7 years (compliance retention)
     expiration {
       days = 2555
     }
 
-    # Clean up incomplete multipart uploads after 7 days
     abort_incomplete_multipart_upload {
       days_after_initiation = 7
     }
   }
 
+  # Rule 2: Clean up raw upload temp files after 7 days
   rule {
-    id     = "noncurrent-version-cleanup"
+    id     = "uploads-temp-cleanup"
+    status = "Enabled"
+
+    filter {
+      prefix = "uploads/"
+    }
+
+    expiration {
+      days = 7
+    }
+  }
+
+  # Rule 3: Move non-current (versioned) objects to Glacier and expire after 1 year
+  rule {
+    id     = "noncurrent-version-lifecycle"
     status = "Enabled"
 
     filter {
@@ -110,20 +134,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "csv_uploads" {
 
     noncurrent_version_expiration {
       noncurrent_days = 365
-    }
-  }
-
-  rule {
-    id     = "uploads-cleanup"
-    status = "Enabled"
-
-    filter {
-      prefix = "uploads/"
-    }
-
-    # Clean up raw uploads after 7 days (already moved to processed/)
-    expiration {
-      days = 7
     }
   }
 }
