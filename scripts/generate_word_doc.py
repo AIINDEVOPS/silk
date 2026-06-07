@@ -23,6 +23,62 @@ for section in doc.sections:
     section.right_margin  = Cm(2.5)
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+def add_toc(doc):
+    """Insert a real Word TOC field — clickable hyperlinks, auto page numbers.
+    When the doc is opened in Word, press Ctrl+A then F9 to refresh page numbers,
+    or right-click the TOC area → Update Field."""
+    # Heading
+    th = doc.add_heading('Table of Contents', level=1)
+    th.runs[0].font.color.rgb = RGBColor(0x32, 0x6C, 0xE5)
+
+    # Instruction paragraph
+    ip = doc.add_paragraph()
+    ir = ip.add_run(
+        'When opened in Word: press Ctrl+A then F9 to update page numbers and links.'
+    )
+    ir.italic = True
+    ir.font.size = Pt(9)
+    ir.font.color.rgb = RGBColor(0x6C, 0x75, 0x7D)
+
+    # TOC field paragraph
+    p = doc.add_paragraph()
+
+    # ── begin field ──
+    run = p.add_run()
+    fc_begin = OxmlElement('w:fldChar')
+    fc_begin.set(qn('w:fldCharType'), 'begin')
+    fc_begin.set(qn('w:dirty'), 'true')   # forces update on open
+    run._r.append(fc_begin)
+
+    # ── instruction text ──
+    #   \o "1-3"  include Heading 1-3
+    #   \h         make entries hyperlinks
+    #   \z         hide tab/page in web view
+    #   \u         use outline level
+    instr = OxmlElement('w:instrText')
+    instr.set(qn('xml:space'), 'preserve')
+    instr.text = ' TOC \\o "1-3" \\h \\z \\u '
+    run._r.append(instr)
+
+    # ── separate ──
+    fc_sep = OxmlElement('w:fldChar')
+    fc_sep.set(qn('w:fldCharType'), 'separate')
+    run._r.append(fc_sep)
+
+    # ── placeholder (replaced by Word on update) ──
+    run2 = p.add_run()
+    ph = OxmlElement('w:t')
+    ph.text = '[Right-click here → Update Field to build the TOC]'
+    run2._r.append(ph)
+    run2.font.size = Pt(10)
+    run2.italic = True
+    run2.font.color.rgb = RGBColor(0xAA, 0xAA, 0xAA)
+
+    # ── end field ──
+    fc_end = OxmlElement('w:fldChar')
+    fc_end.set(qn('w:fldCharType'), 'end')
+    run2._r.append(fc_end)
+
 def h1(text, color=(0x32,0x6C,0xE5)):
     p = doc.add_heading(text, level=1)
     p.runs[0].font.color.rgb = RGBColor(*color)
@@ -140,34 +196,9 @@ for _ in range(5): doc.add_paragraph()
 page_break()
 
 # ════════════════════════════════════════════════════════════════════════════
-# TABLE OF CONTENTS
+# TABLE OF CONTENTS  (real Word TOC field — clickable hyperlinks)
 # ════════════════════════════════════════════════════════════════════════════
-h1('Table of Contents')
-toc = [
-    ('1', 'Assignment Requirements — Overview'),
-    ('2', 'System Architecture Diagram'),
-    ('3', 'Task 1 — Kubernetes Cluster Configuration (kops)'),
-    ('4', 'Task 2 — Application Deployment on Minikube'),
-    ('  4.1', 'Nginx + Flask Sidecar Pod (emptyDir, not NFS)'),
-    ('  4.2', 'Service Object'),
-    ('  4.3', 'HPA Autoscaling'),
-    ('  4.4', 'Ansible Configuration Management'),
-    ('  4.5', 'Helm Multi-Environment Packaging'),
-    ('  4.6', 'CSV Web Application'),
-    ('  4.7', 'S3 Glacier Transition (Terraform)'),
-    ('5', 'Local Deploy — Step by Step'),
-    ('6', 'One-Command Deploy (deploy.sh)'),
-    ('7', 'Application Screenshots'),
-    ('8', 'Repository Structure'),
-    ('9', 'Technology Stack'),
-]
-for num, title in toc:
-    p = doc.add_paragraph()
-    p.paragraph_format.left_indent = Cm(0.5)
-    r = p.add_run(f'{num}.  {title}')
-    r.font.size = Pt(11)
-    if not num.startswith(' '):
-        r.bold = True
+add_toc(doc)
 
 page_break()
 
