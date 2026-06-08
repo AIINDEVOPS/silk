@@ -1,10 +1,14 @@
 # DevOps Case Study — CSV File Processor
 
+[![GitHub](https://img.shields.io/badge/GitHub-AIINDEVOPS%2Fsilk-24292E?logo=github)](https://github.com/AIINDEVOPS/silk)
+[![Docker Image](https://img.shields.io/badge/DockerHub-deepak415%2Fcsv--processor-2496ED?logo=docker)](https://hub.docker.com/r/deepak415/csv-processor)
+[![Platforms](https://img.shields.io/badge/platforms-linux%2Famd64%20%7C%20linux%2Farm64-blue)](#)
+
 A complete DevOps implementation covering Kubernetes cluster configuration,
 containerised application deployment, autoscaling, configuration management,
 Helm packaging, and S3 Glacier storage — deployed locally on Minikube.
 
-**Docker image:** `deepak415/csv-processor:latest` (DockerHub)  
+**Docker image:** `deepak415/csv-processor:latest` — public, multi-platform (`linux/amd64` + `linux/arm64`)  
 **Sample CSV:** `tasks/soh-1-.csv` (751 fashion products)
 
 ---
@@ -239,7 +243,16 @@ minikube start --driver=docker --cpus=4 --memory=8192
 minikube addons enable metrics-server
 ```
 
-### Step 2 — Build image inside Minikube
+### Step 2 — Get the Docker image
+
+**Option A — Pull from DockerHub (recommended, no build needed):**
+```bash
+eval $(minikube docker-env)
+docker pull deepak415/csv-processor:latest
+docker tag deepak415/csv-processor:latest csv-processor:local
+```
+
+**Option B — Build locally from source:**
 ```bash
 eval $(minikube docker-env)
 docker build -t csv-processor:local ./app
@@ -369,7 +382,7 @@ kubectl get pods,svc,hpa -n csv-app
 | Web framework | Python 3.12 + Flask |
 | Web server | Nginx 1.25-alpine (sidecar) |
 | WSGI server | Gunicorn |
-| Container | Docker — `deepak415/csv-processor:latest` |
+| Container | Docker — `deepak415/csv-processor:latest` (public, `linux/amd64` + `linux/arm64`) |
 | Orchestration | Kubernetes via kops (config) / Minikube (local) |
 | Node autoscaling | Cluster Autoscaler (kops workers) |
 | Pod autoscaling | HPA v2 (CPU + Memory) |
