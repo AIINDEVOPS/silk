@@ -18,10 +18,10 @@ check() {
   local desc="$1"; shift
   if "$@" &>/dev/null; then
     green "$desc"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     red "$desc"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -50,7 +50,7 @@ header "Shared static volume (emptyDir – NOT NFS)"
 check "Init container completed"      bash -c "kubectl get pod -n $NAMESPACE -l app=csv-app -o jsonpath='{.items[0].status.initContainerStatuses[0].state.terminated.reason}' | grep -q Completed"
 check "CSS file in shared volume"     kubectl exec -n $NAMESPACE deployment/csv-app -c nginx -- test -f /app/shared-static/css/main.css
 check "JS file in shared volume"      kubectl exec -n $NAMESPACE deployment/csv-app -c nginx -- test -f /app/shared-static/js/main.js
-check "Nginx serves /static/css/"     bash -c "kubectl exec -n $NAMESPACE deployment/csv-app -c nginx -- wget -qO- http://localhost/static/css/main.css | grep -q 'primary'"
+check "Nginx serves /static/css/"     bash -c "kubectl exec -n $NAMESPACE deployment/csv-app -c nginx -- wget -qO- http://127.0.0.1/static/css/main.css | grep -q 'primary'"
 
 header "Flask application"
 check "Flask health endpoint"         bash -c "kubectl exec -n $NAMESPACE deployment/csv-app -c flask-app -- curl -sf http://localhost:5000/health | grep -q healthy"
@@ -62,29 +62,31 @@ check "MinIO API reachable from pod"  bash -c "kubectl exec -n $NAMESPACE deploy
 check "csv-uploads bucket exists"     bash -c "kubectl exec -n $NAMESPACE deployment/minio -- mc alias set local http://localhost:9000 minioadmin minioadmin 2>/dev/null && kubectl exec -n $NAMESPACE deployment/minio -- mc ls local/ | grep -q csv-uploads"
 
 header "End-to-End HTTP test"
-APP_URL="${APP_URL:-}"
-if [ -z "$APP_URL" ]; then
-  APP_URL=$(minikube service csv-app-service -n $NAMESPACE --url 2>/dev/null || echo "")
+# LoadBalancer is exposed at 127.0.0.1:8080 via minikube tunnel
+APP_URL="${APP_URL:-http://127.0.0.1:8080}"
+if ! curl -sf --max-time 5 "$APP_URL/health" &>/dev/null; then
+  yellow "App not reachable at $APP_URL — is 'minikube tunnel' running? Skipping HTTP tests."
+  APP_URL=""
 fi
 if [ -z "$APP_URL" ]; then
-  yellow "Could not get app URL – skipping HTTP tests"
+  yellow "Skipping HTTP tests"
 else
   # Health via HTTP through Nginx
   if curl -sf "$APP_URL/health" | grep -q "healthy"; then
     green "Health via Nginx → Flask chain"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     red "Health via Nginx → Flask chain"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 
   # Index page loads
   if curl -sf "$APP_URL/" | grep -q "CSV File Processor"; then
     green "Index page loads"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     red "Index page loads"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 
   # CSV upload
@@ -101,10 +103,10 @@ CSV
 
   if echo "$RESP" | grep -qi "processed successfully\|rows"; then
     green "CSV upload + processing works"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     red "CSV upload + processing failed"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
   rm -f "$TEST_CSV"
 fi
